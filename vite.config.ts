@@ -104,7 +104,7 @@ function setupSmsEndpoint(middlewares: any, env: Record<string, string>) {
 
         // Fetch credentials from loaded environment
         const apiKey = env.SMS_API_KEY || process.env.SMS_API_KEY;
-        const senderId = env.SMS_SENDER_ID || process.env.SMS_SENDER_ID || 'SecureOpps';
+        const senderId = env.SMS_SENDER_ID || process.env.SMS_SENDER_ID || '';
 
         if (!apiKey) {
           res.statusCode = 500;

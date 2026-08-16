@@ -21,7 +21,7 @@ export default function Settings() {
   });
 
   const [smsSenderId, setSmsSenderId] = useState(
-    localStorage.getItem('cybermonitor_sms_sender_id') || 'SecureOpps'
+    localStorage.getItem('cybermonitor_sms_sender_id') || ''
   );
 
   const [emailConfig, setEmailConfig] = useState<{
@@ -295,8 +295,16 @@ export default function Settings() {
                   onChange={(e) => setTestPlatform(e.target.value as any)}
                   className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white text-slate-700 font-medium cursor-pointer"
                 >
-                  <option value="snapchat">Team Snapchat (teamsnapchatbusinessx@gmail.com)</option>
-                  <option value="tiktok">Team TikTok (examsuite1@gmail.com)</option>
+                  <option value="snapchat">
+                    {emailConfig?.snapchat?.email
+                      ? `Team Snapchat (${emailConfig.snapchat.email})`
+                      : 'Team Snapchat'}
+                  </option>
+                  <option value="tiktok">
+                    {emailConfig?.tiktok?.email
+                      ? `Team TikTok (${emailConfig.tiktok.email})`
+                      : 'Team TikTok'}
+                  </option>
                 </select>
               </div>
 
