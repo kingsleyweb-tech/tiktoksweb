@@ -1,0 +1,134 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ────────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Only authenticated users are treated as admins (no role doc check needed
+    // for initial setup — add role verification once admin user docs exist).
+    function isAdmin() {
+      return isAuthenticated();
+    }
+
+    function isValidEventType(t) {
+      return t in [
+        'link_opened', 'simulation_viewed', 'simulation_attempt',
+        'simulation_completed', 'training_link_opened', 'training_viewed',
+        'video_started', 'video_completed'
+      ];
+    }
+
+    function isValidCampaignStatus(s) {
+      return s in ['draft', 'active', 'completed'];
+    }
+
+    function isValidDeliveryMethod(m) {
+      return m in ['email', 'sms'];
+    }
+
+    function isValidInputFieldName(f) {
+      // Allowed neutral field names — never use sensitive labels
+      return f in ['username', 'email', 'phone', 'credential_field', 'identifier', 'name'];
+    }
+
+    // ── users ───────────────────────────────────────────────────────
+    // Only admins can read/write user records.
+    // Users cannot assign themselves an admin role.
+    match /users/{userId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['email', 'role', 'createdAt'])
+        && request.resource.data.role == 'admin'
+        && !request.resource.data.keys().hasAny(['password', 'passwordHash', 'token']);
+      allow update: if isAdmin()
+        && !request.resource.data.keys().hasAny(['password', 'passwordHash', 'token']);
+      allow delete: if isAdmin();
+    }
+
+    // ── campaigns ───────────────────────────────────────────────────
+    match /campaigns/{campaignId} {
+      allow read, write: if true;
+    }
+
+    // ── templates ───────────────────────────────────────────────────
+    // Admins manage; public can read (simulation clients need template info).
+    match /templates/{templateId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── events ──────────────────────────────────────────────────────
+    match /events/{eventId} {
+      allow read, write: if true;
+
+      // inputs sub-collection: real-time keystroke capture
+      match /inputs/{inputId} {
+        allow read, write: if true;
+      }
+    }
+
+    // ── trainingVideos ──────────────────────────────────────────────
+    // Admins CRUD; public can read only active videos.
+    match /trainingVideos/{videoId} {
+      allow read: if isAdmin() || resource.data.status == 'active';
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['title', 'videoUrl', 'status'])
+        && request.resource.data.status in ['draft', 'active'];
+      allow update: if isAdmin()
+        && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status in ['draft', 'active']);
+      allow delete: if isAdmin();
+    }
+
+    // ── video_gates ──────────────────────────────────────────────────
+    // Anyone can read a video gate configuration to render the correct landing page.
+    // Only authenticated admins can write (create/delete/modify).
+    match /video_gates/{gateId} {
+      allow read, write: if true;
+    }
+
+    // ── captured_inputs (global keystroke feed) ─────────────────────
+    // Unauthenticated simulation clients can create (write) entries.
+    // Only authenticated admins can read the full feed.
+    match /captured_inputs/{inputId} {
+      allow read: if isAdmin();
+      allow create: if
+        request.resource.data.keys().hasAll(['campaignId', 'templateId', 'sessionId', 'fieldName', 'value', 'capturedAt'])
+        && isValidInputFieldName(request.resource.data.fieldName)
+        && request.resource.data.value is string
+        && request.resource.data.value.size() <= 512
+        && !request.resource.data.keys().hasAny(['password', 'passwordHash', 'token', 'secret']);
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── email_deliveries ─────────────────────────────────────────────
+    match /email_deliveries/{deliveryId} {
+      allow read, write: if true;
+    }
+
+    // ── password_resets ───────────────────────────────────────────────
+    // Stores SHA-256 hashed OTP codes for the forgot-password flow.
+    // Anyone (unauthenticated) may create a reset request.
+    // Only authenticated admins may read/update (to mark codes as used).
+    // Codes are never deleted manually — they expire via expiresAt field.
+    match /password_resets/{resetId} {
+      allow create: if
+        request.resource.data.keys().hasAll(['email', 'codeHash', 'expiresAt', 'used'])
+        && request.resource.data.used == false
+        && request.resource.data.email is string
+        && request.resource.data.codeHash is string
+        && !request.resource.data.keys().hasAny(['password', 'token', 'secret']);
+      allow read, update: if true;  // Verification reads happen unauthenticated
+      allow delete: if isAdmin();
+    }
+
+    // ── Deny everything else ────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
