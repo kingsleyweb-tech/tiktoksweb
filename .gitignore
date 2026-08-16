@@ -7,27 +7,37 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Node dependencies
+node_modules/
+**/node_modules/
 
-# Editor directories and files
-.vscode/*
+# Build outputs
+dist/
+dist-ssr/
+**/dist/
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Local Environment variables
+.env
+.env.local
+.env.*.local
+.env.*
+**/.env
+**/.env.local
+**/.env.*
+
+# Firebase & Secret Files (contains private keys - never commit)
+service-account.json
+**/service-account.json
+
+# Editor configurations
+.vscode/
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-# Environment files (never commit credentials)
-.env
-.env.local
-.env.*.local
-.env.*
-
-# Firebase service account (contains private keys — never commit)
-service-account.json

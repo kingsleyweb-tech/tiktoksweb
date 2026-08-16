@@ -1,5 +1,6 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
+import { API_BASE_URL } from './api';
 
 export type DeliveryChannel = 'Email' | 'SMS';
 
@@ -66,7 +67,7 @@ function saveLocalEmailDelivery(log: EmailDeliveryLog) {
 
 /** Get email sender configurations from backend */
 export async function getEmailConfig(): Promise<EmailConfigResponse> {
-  const response = await fetch('/api/email/config');
+  const response = await fetch(`${API_BASE_URL}/api/email/config`);
   if (!response.ok) {
     throw new Error('Failed to retrieve email configuration from backend.');
   }
@@ -75,7 +76,7 @@ export async function getEmailConfig(): Promise<EmailConfigResponse> {
 
 /** Get email connection status from backend */
 export async function getEmailStatus(): Promise<EmailStatusResponse> {
-  const response = await fetch('/api/email/status');
+  const response = await fetch(`${API_BASE_URL}/api/email/status`);
   if (!response.ok) {
     throw new Error('Failed to retrieve email connection statuses.');
   }
@@ -91,7 +92,7 @@ export async function sendSimulationEmail(params: {
   templateId: string;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const response = await fetch('/api/email/send', {
+    const response = await fetch(`${API_BASE_URL}/api/email/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
@@ -166,7 +167,7 @@ export async function sendSimulationLink(
   const messageText = customSmsMessage || defaultSmsText;
 
   try {
-    const response = await fetch('/api/sms/send', {
+    const response = await fetch(`${API_BASE_URL}/api/sms/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

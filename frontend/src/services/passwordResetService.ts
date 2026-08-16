@@ -8,6 +8,7 @@ import {
   verifyPasswordResetCode,
 } from 'firebase/auth';
 import { db, auth, isFirebaseConfigured } from './firebase';
+import { API_BASE_URL } from './api';
 
 const COLLECTION = 'password_resets';
 const CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
@@ -96,7 +97,7 @@ export async function verifyResetCode(email: string, plainCode: string): Promise
 
 /** Send the 6-digit OTP to the user's email via the SMTP backend. */
 export async function sendResetCodeEmail(email: string, code: string): Promise<void> {
-  const res = await fetch('/api/auth/send-reset-otp', {
+  const res = await fetch(`${API_BASE_URL}/api/auth/send-reset-otp`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, code }),
@@ -119,7 +120,7 @@ export async function resetPasswordViaBackend(
     return;
   }
 
-  const res = await fetch('/api/auth/reset-password', {
+  const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, newPassword, resetToken }),
