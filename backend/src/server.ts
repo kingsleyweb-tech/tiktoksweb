@@ -22,13 +22,18 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (origin === allowedOrigin || origin === 'http://localhost:5173') {
+    
+    // Check if origin matches allowed origin, localhost, vercel.app or netlify.app
+    if (
+      origin === allowedOrigin || 
+      origin === 'http://localhost:5173' ||
+      /\.vercel\.app$/.test(origin) ||
+      /\.netlify\.app$/.test(origin) ||
+      /^https?:\/\/localhost:\d+$/.test(origin)
+    ) {
       return callback(null, true);
     }
-    // Allow any localhost origin for dev convenience
-    if (/^https?:\/\/localhost:\d+$/.test(origin)) {
-      return callback(null, true);
-    }
+    
     console.warn(`[CORS] Request from blocked origin: ${origin}`);
     return callback(new Error('Not allowed by CORS'), false);
   },
