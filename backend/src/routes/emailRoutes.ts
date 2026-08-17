@@ -16,8 +16,8 @@ router.get('/config', (req: Request, res: Response) => {
   const sc = buildTransporter('snapchat');
 
   res.status(200).json({
-    tiktok:   { displayName: 'Team TikTok',   email: tk.user, configured: tk.configured, smtpHost: tk.host },
-    snapchat: { displayName: 'Team Snapchat', email: sc.user, configured: sc.configured, smtpHost: sc.host },
+    tiktok:   { displayName: 'Team TikTok',   email: tk.resendApiKey ? tk.fromEmail : tk.user, configured: tk.resendApiKey ? true : tk.configured, smtpHost: tk.host || 'resend.api' },
+    snapchat: { displayName: 'Team Snapchat', email: sc.resendApiKey ? sc.fromEmail : sc.user, configured: sc.resendApiKey ? true : sc.configured, smtpHost: sc.host || 'resend.api' },
   });
 });
 
@@ -48,9 +48,35 @@ router.post('/test', async (req: Request, res: Response) => {
     const platformKey = platform === 'tiktok' ? 'tiktok' : 'snapchat';
     const displayName = platformKey === 'tiktok' ? 'Team TikTok' : 'Team Snapchat';
 
-    const { host: h, port: p, user: u, pass: pw, configured: c, useSSL } = buildTransporter(platformKey);
-    if (!c) {
+    const { host: h, port: p, user: u, pass: pw, configured: c, useSSL, resendApiKey, fromEmail } = buildTransporter(platformKey);
+    
+    if (!resendApiKey && !c) {
       res.status(500).json({ error: `${displayName} SMTP not configured in env. Please configure and restart the server.` });
+      return;
+    }
+
+    if (resendApiKey) {
+      const resendResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: `"${displayName} Test" <${fromEmail}>`,
+          to: [testRecipient],
+          subject: 'SMTP/API Test',
+          text: `This is a test email from the application. The Resend API connection for ${displayName} is working correctly.`,
+        })
+      });
+
+      const resendData: any = await resendResponse.json();
+      if (!resendResponse.ok) {
+        throw new Error(resendData.message || 'Resend API returned an error.');
+      }
+
+      console.info(`[EmailService] ${displayName} Test email sent via Resend API to:`, testRecipient, '| messageId:', resendData.id);
+      res.status(200).json({ success: true, messageId: resendData.id });
       return;
     }
 
@@ -111,9 +137,42 @@ router.post('/send', async (req: Request, res: Response) => {
       platformKey = 'snapchat'; // Fallback
     }
 
-    const { host: h, port: p, user: u, pass: pw, configured: c, useSSL } = buildTransporter(platformKey);
-    if (!c) {
+    const { host: h, port: p, user: u, pass: pw, configured: c, useSSL, resendApiKey, fromEmail } = buildTransporter(platformKey);
+    
+    if (!resendApiKey && !c) {
       res.status(500).json({ error: `SMTP server configuration for ${displayName} is incomplete.` });
+      return;
+    }
+
+    if (resendApiKey) {
+      const resendResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: `"${displayName}" <${fromEmail}>`,
+          to: [recipient],
+          subject,
+          text: message,
+          html: convertMarkdownToHtml(message)
+        })
+      });
+
+      const resendData: any = await resendResponse.json();
+      if (!resendResponse.ok) {
+        throw new Error(resendData.message || 'Resend API returned an error.');
+      }
+
+      console.info('[EmailService] Email sent via Resend API:', {
+        campaignId,
+        recipient: recipient.replace(/./g, (c: string, idx: number) => (idx < 3 || c === '@' ? c : '*')),
+        displayName,
+        messageId: resendData.id,
+      });
+
+      res.status(200).json({ success: true, messageId: resendData.id });
       return;
     }
 

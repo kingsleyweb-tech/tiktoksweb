@@ -55,7 +55,7 @@ export function classifySmtpError(err: any): { statusCode: number; message: stri
     return { statusCode: 429, message: 'Gmail rate limit hit. Wait a few minutes and try again.' };
   }
   // Fallback — include the raw error for debugging
-  return { statusCode: 500, message: `Email sending failed: ${err?.message || err?.code || 'Unknown SMTP error'}. Check Render logs for full details.` };
+  return { statusCode: 500, message: `Email sending failed: ${err?.message || err?.code || 'Unknown SMTP error'}. Check server logs for full details.` };
 }
 
 /** Build a nodemailer transport config.
@@ -69,16 +69,32 @@ export function buildTransporter(platform?: string) {
   const port = parseInt((pfx && process.env[`${pfx}_PORT`]) || process.env.SMTP_PORT || '587', 10);
   const user = (pfx && process.env[`${pfx}_USER`]) || process.env.SMTP_USER || '';
   const pass = (pfx && process.env[`${pfx}_PASSWORD`]) || process.env.SMTP_PASSWORD || '';
+  const resendApiKey = process.env.RESEND_API_KEY || '';
+  const fromEmail = (pfx && process.env[`${pfx}_FROM`]) || process.env.SMTP_FROM_EMAIL || 'onboarding@resend.dev';
 
   // Port 465 uses direct SSL; port 587 uses STARTTLS (secure=false + requireTLS=true)
   const useSSL = port === 465;
 
-  return { host, port, user, pass, configured: !!(host && user && pass), useSSL };
+  return { 
+    host, 
+    port, 
+    user, 
+    pass, 
+    configured: !!(host && user && pass), 
+    useSSL,
+    resendApiKey,
+    fromEmail
+  };
 }
 
 /** Verify connection status of the SMTP transporters */
 export async function checkPlatformSmtpStatus(platform: string): Promise<{ status: 'connected' | 'disconnected' | 'not_configured'; error?: string }> {
-  const { host: h, port: p, user: u, pass: pw, configured: c, useSSL } = buildTransporter(platform);
+  const { host: h, port: p, user: u, pass: pw, configured: c, useSSL, resendApiKey } = buildTransporter(platform);
+  
+  if (resendApiKey) {
+    return { status: 'connected' };
+  }
+  
   if (!c) {
     return { status: 'not_configured', error: `Missing ${platform.toUpperCase()} configuration variables in env` };
   }
