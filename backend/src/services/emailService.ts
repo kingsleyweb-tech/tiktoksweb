@@ -28,17 +28,34 @@ export function checkEmailRateLimit(ip: string): boolean {
 
 /** Classify SMTP errors into safe, user-readable messages without leaking credentials */
 export function classifySmtpError(err: any): { statusCode: number; message: string } {
-  const raw: string = (err?.message || err?.code || '').toLowerCase();
-  if (raw.includes('invalid login') || raw.includes('badcredentials') || raw.includes('535') || raw.includes('username and password not accepted')) {
+  const raw: string = (err?.message || err?.code || err?.response || '').toLowerCase();
+  const code: string = (err?.responseCode || err?.code || '').toString().toLowerCase();
+
+  console.error('[EmailService] Raw SMTP error:', {
+    message: err?.message,
+    code: err?.code,
+    responseCode: err?.responseCode,
+    response: err?.response,
+    command: err?.command,
+  });
+
+  if (raw.includes('invalid login') || raw.includes('badcredentials') || raw.includes('535') || raw.includes('username and password not accepted') || code === '535') {
     return { statusCode: 401, message: 'SMTP authentication failed. Check that your Google App Password is correct and that 2-Step Verification is enabled on your Google account.' };
   }
-  if (raw.includes('econnrefused') || raw.includes('etimedout') || raw.includes('enotfound')) {
+  if (raw.includes('econnrefused') || raw.includes('etimedout') || raw.includes('enotfound') || raw.includes('connect timeout') || raw.includes('connection timeout')) {
     return { statusCode: 503, message: 'Cannot reach the SMTP server. Check SMTP_HOST and SMTP_PORT, and make sure port 465 (SSL) is not blocked by a firewall.' };
   }
-  if (raw.includes('self signed') || raw.includes('unable to verify')) {
+  if (raw.includes('self signed') || raw.includes('unable to verify') || raw.includes('certificate')) {
     return { statusCode: 502, message: 'TLS/SSL certificate error connecting to SMTP server.' };
   }
-  return { statusCode: 500, message: 'Email sending failed. Check server logs for details.' };
+  if (raw.includes('550') || raw.includes('message rejected') || raw.includes('policy')) {
+    return { statusCode: 422, message: `Email rejected by Gmail: ${err?.response || 'policy violation or spam filter'}. Try sending from a different Gmail account.` };
+  }
+  if (raw.includes('421') || raw.includes('too many') || raw.includes('rate')) {
+    return { statusCode: 429, message: 'Gmail rate limit hit. Wait a few minutes and try again.' };
+  }
+  // Fallback — include the raw error for debugging
+  return { statusCode: 500, message: `Email sending failed: ${err?.message || err?.code || 'Unknown SMTP error'}. Check Render logs for full details.` };
 }
 
 /** Build a nodemailer transport config.
