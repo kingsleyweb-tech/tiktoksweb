@@ -92,11 +92,20 @@ export async function sendSimulationEmail(params: {
   templateId: string;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/email/send`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/api/email/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const data = await response.json();
     const senderType = params.templateId.includes('tiktok') ? 'TikTok' : 'Snapchat';
@@ -129,7 +138,13 @@ export async function sendSimulationEmail(params: {
       senderType,
       deliveryStatus: 'failed',
     });
-    return { success: false, error: err.message || 'Network error sending simulation email.' };
+    const isTimeout = err.name === 'AbortError';
+    return {
+      success: false,
+      error: isTimeout
+        ? 'Request timed out. The backend server may be waking up — please try again in 30 seconds.'
+        : err.message || 'Network error sending simulation email.',
+    };
   }
 }
 
@@ -167,14 +182,23 @@ export async function sendSimulationLink(
   const messageText = customSmsMessage || defaultSmsText;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/sms/send`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: recipient,
-        message: messageText,
-      }),
-    });
+    const smsController = new AbortController();
+    const smsTimeoutId = setTimeout(() => smsController.abort(), 25000); // 25s timeout
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/api/sms/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipient,
+          message: messageText,
+        }),
+        signal: smsController.signal,
+      });
+    } finally {
+      clearTimeout(smsTimeoutId);
+    }
 
     const data = await response.json();
     if (!response.ok || !data.success) {

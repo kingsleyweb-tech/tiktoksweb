@@ -61,4 +61,19 @@ verifyAllSmtpOnStartup();
 app.listen(port, () => {
   console.info(`[Server] Phishing Awareness Backend listening on port ${port}`);
   console.info(`[Server] CORS configured to accept requests from: ${allowedOrigin}`);
+
+  // Keep-alive: ping own health endpoint every 14 minutes to prevent
+  // Render free-tier from spinning down (it sleeps after 15 min of inactivity).
+  const selfUrl = process.env.RENDER_EXTERNAL_URL
+    ? `${process.env.RENDER_EXTERNAL_URL}/api/health`
+    : null;
+
+  if (selfUrl) {
+    setInterval(() => {
+      fetch(selfUrl)
+        .then(() => console.info('[KeepAlive] Self-ping OK'))
+        .catch((err: any) => console.warn('[KeepAlive] Self-ping failed:', err.message));
+    }, 14 * 60 * 1000); // every 14 minutes
+    console.info(`[KeepAlive] Self-ping scheduled every 14 min → ${selfUrl}`);
+  }
 });

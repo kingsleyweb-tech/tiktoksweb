@@ -117,7 +117,15 @@ router.post('/send', async (req: Request, res: Response) => {
       return;
     }
 
-    const transporter = nodemailer.createTransport({ host: h, port: p, secure: true, auth: { user: u, pass: pw } });
+    const transporter = nodemailer.createTransport({
+      host: h,
+      port: p,
+      secure: true,
+      auth: { user: u, pass: pw },
+      connectionTimeout: 10000,  // 10s to establish TCP connection
+      greetingTimeout: 10000,    // 10s to receive SMTP greeting
+      socketTimeout: 15000,      // 15s of socket inactivity before abort
+    });
     const info = await transporter.sendMail({
       from: `"${displayName}" <${u}>`,
       to: recipient,
