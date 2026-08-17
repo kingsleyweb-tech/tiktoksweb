@@ -48,13 +48,13 @@ router.post('/test', async (req: Request, res: Response) => {
     const platformKey = platform === 'tiktok' ? 'tiktok' : 'snapchat';
     const displayName = platformKey === 'tiktok' ? 'Team TikTok' : 'Team Snapchat';
 
-    const { host: h, port: p, user: u, pass: pw, configured: c } = buildTransporter(platformKey);
+    const { host: h, port: p, user: u, pass: pw, configured: c, useSSL } = buildTransporter(platformKey);
     if (!c) {
       res.status(500).json({ error: `${displayName} SMTP not configured in env. Please configure and restart the server.` });
       return;
     }
 
-    const transporter = nodemailer.createTransport({ host: h, port: p, secure: true, auth: { user: u, pass: pw } });
+    const transporter = nodemailer.createTransport({ host: h, port: p, secure: useSSL, auth: { user: u, pass: pw } });
     const info = await transporter.sendMail({
       from: `"${displayName} Test" <${u}>`,
       to: testRecipient,
@@ -111,7 +111,7 @@ router.post('/send', async (req: Request, res: Response) => {
       platformKey = 'snapchat'; // Fallback
     }
 
-    const { host: h, port: p, user: u, pass: pw, configured: c } = buildTransporter(platformKey);
+    const { host: h, port: p, user: u, pass: pw, configured: c, useSSL } = buildTransporter(platformKey);
     if (!c) {
       res.status(500).json({ error: `SMTP server configuration for ${displayName} is incomplete.` });
       return;
@@ -120,7 +120,7 @@ router.post('/send', async (req: Request, res: Response) => {
     const transporter = nodemailer.createTransport({
       host: h,
       port: p,
-      secure: true,
+      secure: useSSL,
       auth: { user: u, pass: pw },
       connectionTimeout: 10000,  // 10s to establish TCP connection
       greetingTimeout: 10000,    // 10s to receive SMTP greeting

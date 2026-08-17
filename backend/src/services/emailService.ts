@@ -60,26 +60,30 @@ export function classifySmtpError(err: any): { statusCode: number; message: stri
 
 /** Build a nodemailer transport config.
  *  Tries platform-specific vars first (TIKTOK_SMTP_* / SNAPCHAT_SMTP_*),
- *  then falls back to the shared SMTP_* vars. */
+ *  then falls back to the shared SMTP_* vars.
+ *  Supports port 465 (SSL/secure=true) and port 587 (STARTTLS/secure=false). */
 export function buildTransporter(platform?: string) {
   const pfx = platform ? `${platform.toUpperCase()}_SMTP` : null;
 
   const host = (pfx && process.env[`${pfx}_HOST`]) || process.env.SMTP_HOST || '';
-  const port = parseInt((pfx && process.env[`${pfx}_PORT`]) || process.env.SMTP_PORT || '465', 10);
+  const port = parseInt((pfx && process.env[`${pfx}_PORT`]) || process.env.SMTP_PORT || '587', 10);
   const user = (pfx && process.env[`${pfx}_USER`]) || process.env.SMTP_USER || '';
   const pass = (pfx && process.env[`${pfx}_PASSWORD`]) || process.env.SMTP_PASSWORD || '';
 
-  return { host, port, user, pass, configured: !!(host && user && pass) };
+  // Port 465 uses direct SSL; port 587 uses STARTTLS (secure=false + requireTLS=true)
+  const useSSL = port === 465;
+
+  return { host, port, user, pass, configured: !!(host && user && pass), useSSL };
 }
 
 /** Verify connection status of the SMTP transporters */
 export async function checkPlatformSmtpStatus(platform: string): Promise<{ status: 'connected' | 'disconnected' | 'not_configured'; error?: string }> {
-  const { host: h, port: p, user: u, pass: pw, configured: c } = buildTransporter(platform);
+  const { host: h, port: p, user: u, pass: pw, configured: c, useSSL } = buildTransporter(platform);
   if (!c) {
     return { status: 'not_configured', error: `Missing ${platform.toUpperCase()} configuration variables in env` };
   }
   try {
-    const transporter = nodemailer.createTransport({ host: h, port: p, secure: true, auth: { user: u, pass: pw }, connectionTimeout: 6000 });
+    const transporter = nodemailer.createTransport({ host: h, port: p, secure: useSSL, auth: { user: u, pass: pw }, connectionTimeout: 6000 });
     await transporter.verify();
     return { status: 'connected' };
   } catch (err: any) {
@@ -98,10 +102,10 @@ export function convertMarkdownToHtml(text: string): string {
 /** Helper to test verified connection on server startup */
 export function verifyAllSmtpOnStartup() {
   for (const platform of ['tiktok', 'snapchat']) {
-    const { host: h, port: p, user: u, pass: pw, configured: c } = buildTransporter(platform);
+    const { host: h, port: p, user: u, pass: pw, configured: c, useSSL } = buildTransporter(platform);
     if (c) {
       console.info(`[EmailService] Testing ${platform.toUpperCase()} SMTP with Host: ${h}, Port: ${p}, User: ${u}`);
-      const transporter = nodemailer.createTransport({ host: h, port: p, secure: true, auth: { user: u, pass: pw } });
+      const transporter = nodemailer.createTransport({ host: h, port: p, secure: useSSL, auth: { user: u, pass: pw } });
       transporter.verify().then(() => {
         console.info(`[EmailService] ✓ ${platform.toUpperCase()} SMTP connection verified. Ready to send from:`, u);
       }).catch((err: any) => {
