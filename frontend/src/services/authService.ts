@@ -20,17 +20,31 @@ function triggerMockListeners() {
 }
 
 export async function loginAdmin(email: string, password: string): Promise<AdminUser> {
+  const normalisedEmail = email.toLowerCase().trim();
+  if (normalisedEmail !== 'kingsleyanaab604@gmail.com') {
+    throw new Error('Unauthorized: Only kingsleyanaab604@gmail.com is authorized to log in.');
+  }
+
   if (isFirebaseConfigured) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      
+      if (user.email?.toLowerCase().trim() !== 'kingsleyanaab604@gmail.com') {
+        await signOut(auth);
+        throw new Error('Unauthorized: Only kingsleyanaab604@gmail.com is authorized to log in.');
+      }
+
       return {
         uid: user.uid,
         email: user.email || '',
         displayName: user.displayName || 'Admin User',
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error("Firebase Login failed. Attempting Mock Login fallback.", error);
+      if (error.message && error.message.includes('Unauthorized')) {
+        throw error;
+      }
       // Fallback if Firebase is configured but offline or has setup issues, 
       // or if it's the specific test account.
     }
@@ -38,7 +52,7 @@ export async function loginAdmin(email: string, password: string): Promise<Admin
 
   // Fallback Local Login (only if env credentials are set and non-empty)
   const localPassword = localStorage.getItem('cybermonitor_local_password') || MOCK_ADMIN_PASSWORD;
-  if (MOCK_ADMIN_EMAIL && localPassword && email === MOCK_ADMIN_EMAIL && password === localPassword) {
+  if (MOCK_ADMIN_EMAIL && localPassword && normalisedEmail === MOCK_ADMIN_EMAIL.toLowerCase().trim() && password === localPassword) {
     mockCurrentUser = {
       uid: 'local-admin-uid',
       email: MOCK_ADMIN_EMAIL,
@@ -67,6 +81,11 @@ export function subscribeToAuthChanges(callback: (user: AdminUser | null) => voi
   if (isFirebaseConfigured) {
     return onAuthStateChanged(auth, (user: FirebaseUser | null) => {
       if (user) {
+        if (user.email?.toLowerCase().trim() !== 'kingsleyanaab604@gmail.com') {
+          signOut(auth);
+          callback(null);
+          return;
+        }
         callback({
           uid: user.uid,
           email: user.email || '',
@@ -76,8 +95,14 @@ export function subscribeToAuthChanges(callback: (user: AdminUser | null) => voi
         // Check if there is a local session user persisted
         const saved = localStorage.getItem('cybermonitor_local_user');
         if (saved) {
-          mockCurrentUser = JSON.parse(saved);
-          callback(mockCurrentUser);
+          const parsed = JSON.parse(saved);
+          if (parsed.email?.toLowerCase().trim() !== 'kingsleyanaab604@gmail.com') {
+            localStorage.removeItem('cybermonitor_local_user');
+            callback(null);
+          } else {
+            mockCurrentUser = parsed;
+            callback(mockCurrentUser);
+          }
         } else {
           callback(null);
         }
@@ -88,7 +113,13 @@ export function subscribeToAuthChanges(callback: (user: AdminUser | null) => voi
   // Local fallback session check
   const saved = localStorage.getItem('cybermonitor_local_user');
   if (saved) {
-    mockCurrentUser = JSON.parse(saved);
+    const parsed = JSON.parse(saved);
+    if (parsed.email?.toLowerCase().trim() !== 'kingsleyanaab604@gmail.com') {
+      localStorage.removeItem('cybermonitor_local_user');
+      mockCurrentUser = null;
+    } else {
+      mockCurrentUser = parsed;
+    }
   }
   
   mockListeners.push(callback);

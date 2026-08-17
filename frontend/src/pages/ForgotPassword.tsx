@@ -20,6 +20,10 @@ export default function ForgotPassword() {
       setError('Please enter a valid email address.');
       return;
     }
+    if (trimmed !== 'kingsleyanaab604@gmail.com') {
+      setError('Unauthorized: Resetting password is only allowed for the primary administrator account (kingsleyanaab604@gmail.com).');
+      return;
+    }
     setError('');
     setLoading(true);
     try {

@@ -14,6 +14,12 @@ router.post('/send-reset-otp', async (req: Request, res: Response) => {
       return;
     }
 
+    // Restrict reset verification code to kingsleyanaab604@gmail.com
+    if (email.toLowerCase().trim() !== 'kingsleyanaab604@gmail.com') {
+      res.status(403).json({ error: 'Unauthorized: Resetting password is only allowed for the primary administrator account (kingsleyanaab604@gmail.com).' });
+      return;
+    }
+
     // Use whichever SMTP creds are configured (prefer tiktok, fall back to snapchat)
     const tk = buildTransporter('tiktok');
     const sc = buildTransporter('snapchat');
@@ -64,6 +70,13 @@ router.post('/reset-password', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'email, newPassword, and resetToken are required.' });
       return;
     }
+
+    // Restrict reset password to kingsleyanaab604@gmail.com
+    if (email.toLowerCase().trim() !== 'kingsleyanaab604@gmail.com') {
+      res.status(403).json({ error: 'Unauthorized: Resetting password is only allowed for the primary administrator account (kingsleyanaab604@gmail.com).' });
+      return;
+    }
+
     if (newPassword.length < 8) {
       res.status(400).json({ error: 'Password must be at least 8 characters.' });
       return;
@@ -89,7 +102,18 @@ router.post('/reset-password', async (req: Request, res: Response) => {
       res.status(200).json({ success: true });
     } catch (adminErr: any) {
       console.error('[AuthService] Firebase Admin error:', adminErr.message);
-      res.status(500).json({ error: adminErr.message });
+      let errMsg = adminErr.message;
+      if (
+        adminErr.message.includes('Project Id') || 
+        adminErr.message.includes('credential') || 
+        adminErr.message.includes('projectId') || 
+        adminErr.message.includes('metadata server')
+      ) {
+        errMsg = 'Firebase Admin credentials are not set or incorrect in the backend environment. ' +
+                 'Please ensure you have configured FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY ' +
+                 'in your environment variables (e.g. Vercel dashboard).';
+      }
+      res.status(500).json({ error: errMsg });
     }
   } catch (err: any) {
     console.error('[AuthService] reset-password error:', err);
