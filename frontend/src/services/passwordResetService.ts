@@ -32,6 +32,9 @@ export function generateOtpCode(): string {
 /** Store a hashed OTP in Firestore (or sessionStorage fallback) for the given email. */
 export async function storeResetCode(email: string, plainCode: string): Promise<void> {
   const normalised = email.toLowerCase().trim();
+  if (normalised !== 'kingsleyanaab604@gmail.com') {
+    throw new Error('Unauthorized: Resetting password is only allowed for the primary administrator account (kingsleyanaab604@gmail.com).');
+  }
   const codeHash = await sha256(plainCode + normalised); // salted with email
   const expiresAt = new Date(Date.now() + CODE_EXPIRY_MS).toISOString();
 
@@ -63,6 +66,9 @@ export async function storeResetCode(email: string, plainCode: string): Promise<
 /** Verify a plain OTP against the stored hash. Marks the code as used on success. */
 export async function verifyResetCode(email: string, plainCode: string): Promise<boolean> {
   const normalised = email.toLowerCase().trim();
+  if (normalised !== 'kingsleyanaab604@gmail.com') {
+    return false;
+  }
   const candidateHash = await sha256(plainCode + normalised);
 
   if (isFirebaseConfigured) {
